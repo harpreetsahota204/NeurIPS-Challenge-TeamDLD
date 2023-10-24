@@ -1,0 +1,34 @@
+# read the doc: https://huggingface.co/docs/hub/spaces-sdks-docker
+# you will also find guides on how best to write your Dockerfile
+# Use an official Python runtime as a parent image
+# other options in https://github.com/orgs/pytorch/packages/container/pytorch-nightly/versions?filters%5Bversion_type%5D=tagged
+# Lit-GPT requires current nightly (future 2.1) for the latest attention changes
+FROM ghcr.io/pytorch/pytorch-nightly:c69b6e5-cu11.8.0
+
+# Set the working directory in the container to /submission
+WORKDIR /submission
+
+# Copy the specific file into the container at /submission
+COPY /lit-gpt/ /submission/
+
+# Setup server requriements
+COPY ./fast_api_requirements.txt fast_api_requirements.txt
+RUN pip install --no-cache-dir --upgrade -r fast_api_requirements.txt
+
+RUN apt update && apt install -y git
+# Install any needed packages specified in requirements.txt that come from lit-gpt plus some optionals
+RUN pip install -r requirements.txt huggingface_hub sentencepiece tokenizers bitsandbytes scipy safetensors
+
+# some huggingface_hub versions require that the target dir exists
+# openlm-research/open_llama_3b
+RUN mkdir -p checkpoints/Deci/DeciLM-6b
+# get open-llama weights: https://github.com/Lightning-AI/lit-gpt/blob/main/tutorials/download_openllama.md
+RUN python scripts/download.py --repo_id Deci/DeciLM-6b --from_safetensors True
+RUN python scripts/convert_hf_checkpoint.py --checkpoint_dir checkpoints/Deci/DeciLM-6b
+
+# Copy over single file server
+COPY ./main.py /submission/main.py
+COPY ./helper.py /submission/helper.py
+COPY ./api.py /submission/api.py
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
