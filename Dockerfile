@@ -13,10 +13,19 @@ WORKDIR $HOME/workspace
 COPY --chown=user . $HOME/workspace
 
 COPY ./deci-lm/requirements.txt ./
-COPY ./deci-lm/train.py ./
-COPY ./deci-lm/app.log ./
-
+# COPY ./deci-lm/train.py ./
 RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
+# Setup server requriements
+COPY ./fast_api_requirements.txt ./
+RUN pip install --no-cache-dir --upgrade -r fast_api_requirements.txt
 
-CMD [ "python", "train.py"]
+# For API server
+COPY ./main.py ./
+COPY ./deci-lm/download_model.py ./
+RUN python download_model.py
+
+
+
+# CMD [ "python", "train.py"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
